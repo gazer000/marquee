@@ -1,0 +1,67 @@
+@font-face { font-family: "Inter"; src: url("fonts/Inter.ttf"); font-weight: 100 900; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #101218; }
+body { font-family: "Inter", "LG Smart UI", sans-serif; color: #fff; cursor: none; }
+/* Everything is laid out on a 960x540 grid (Android dp at 1080p) and zoomed to the screen. */
+#stage { position: absolute; left: 0; top: 0; width: 960px; height: 540px; overflow: hidden; }
+#backBack, #backFront { position: absolute; left: 0; top: 0; width: 960px; height: 540px; }
+#backFront { opacity: 0; will-change: opacity; }
+#backFront.fading { transition: opacity 360ms cubic-bezier(0.2, 0.6, 0.35, 1); }
+
+#railTrack, #railThumb { position: absolute; left: 72px; top: 270px; width: 3px; border-radius: 2px; }
+#railTrack { height: 136px; margin-top: -68px; background: rgba(255,255,255,0.15); }
+#railThumb { height: 24px; background: rgba(255,255,255,0.9); will-change: transform;
+  transition: transform 240ms cubic-bezier(0.2, 0.6, 0.35, 1); }
+
+#names { position: absolute; left: 112px; right: 80px; top: 0; bottom: 0; }
+.name { position: absolute; left: 0; top: 270px; font-size: 60px; font-weight: 700; letter-spacing: -0.03em;
+  line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 595px;
+  transform-origin: 0 50%; opacity: 0; will-change: transform, opacity; }
+.name.anim { transition: transform 240ms cubic-bezier(0.2, 0.6, 0.35, 1), opacity 240ms cubic-bezier(0.2, 0.6, 0.35, 1); }
+
+#status { position: absolute; top: 40px; right: 64px; text-align: right; }
+#clock { font-size: 40px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; font-feature-settings: "tnum"; }
+#info { margin-top: 8px; font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.75); white-space: nowrap; }
+#info .dot { margin: 0 10px; color: rgba(255,255,255,0.4); }
+#wifi { width: 16px; height: 13px; vertical-align: -1px; margin-right: 7px; }
+#wifi.none { display: none; }
+
+#hints { position: absolute; left: 112px; bottom: 44px; opacity: 0.7; white-space: nowrap; }
+.chip { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: rgba(255,255,255,0.9);
+  border: 1px solid rgba(255,255,255,0.5); border-radius: 5px; padding: 2px 7px 3px; }
+.hint { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.7); margin: 0 28px 0 8px; }
+
+#customize { position: absolute; left: 0; top: 0; width: 960px; height: 540px; background: #101218;
+  box-sizing: border-box; padding: 44px 96px 0; }
+#customize.hidden, #toast.hidden { display: none; }
+#customize .title { font-size: 34px; font-weight: 700; }
+#customize .sub { font-size: 16px; color: rgba(255,255,255,0.6); margin: 6px 0 20px; }
+#list { position: absolute; left: 96px; right: 96px; top: 130px; bottom: 0; overflow: hidden; }
+#listInner { position: absolute; left: 0; right: 0; top: 0; transition: transform 160ms ease-out; }
+.row { display: flex; align-items: center; height: 44px; border-radius: 10px; padding: 0 8px 0 16px; margin-bottom: 4px; }
+.row .label { flex: 1; font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .swatch { width: 14px; height: 14px; border-radius: 7px; margin-right: 14px; }
+.row .state { font-size: 14px; font-weight: 600; width: 80px; color: rgba(255,255,255,0.5); }
+.row.on .state { color: #fff; }
+.row.off .label { color: rgba(255,255,255,0.45); }
+.row .btn { width: 36px; height: 32px; line-height: 32px; text-align: center; border-radius: 8px; font-size: 14px;
+  color: rgba(255,255,255,0.5); margin-left: 6px; }
+.row.focus { background: rgba(255,255,255,0.08); }
+.row.focus.col0 { background: rgba(255,255,255,0.16); }
+.row.focus.col1 .up, .row.focus.col2 .down { background: #fff; color: #101218; }
+.section { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.5); padding: 18px 0 8px 12px; }
+
+#names { transition: opacity 240ms ease-out; }
+#names.away { opacity: 0.35; }
+#inputs { position: absolute; right: 64px; top: 190px; text-align: right; }
+#inputs.hidden, #inputsHint.hidden { display: none; }
+#inputs .ihead { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.55); margin: 0 14px 10px 0; }
+.input { font-size: 22px; font-weight: 600; line-height: 1; padding: 9px 14px 10px; margin-bottom: 4px; border-radius: 10px;
+  white-space: nowrap; color: rgba(255,255,255,0.6); transition: background-color 160ms ease-out, color 160ms ease-out; }
+.input.sel { color: #fff; }
+#inputs.active .input.sel { background: rgba(255,255,255,0.95); color: #101218; }
+#inputs.active .input { color: rgba(255,255,255,0.8); }
+#inputs.active .input.sel { color: #101218; }
+
+#toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(20,22,30,0.92);
+  padding: 10px 20px; border-radius: 20px; font-size: 15px; font-weight: 500; }

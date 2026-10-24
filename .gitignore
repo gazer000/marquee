@@ -1,0 +1,25 @@
+# Build output
+build/
+test/build/
+test/.gradle/
+.gradle/
+*.apk
+*.dex
+*.class
+
+# Signing keys: never commit these. Keep your own keystore backed up somewhere safe;
+# an update must be signed with the same key as the installed copy.
+*.keystore
+*.jks
+keystore.properties
+
+# Local state written by scripts/tune.sh
+android/scripts/state/
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+local.properties

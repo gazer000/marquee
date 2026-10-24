@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Marquee</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="backBack" width="480" height="270"></canvas>
+  <canvas id="backFront" width="480" height="270"></canvas>
+  <div id="railTrack"></div>
+  <div id="railThumb"></div>
+  <div id="names"></div>
+  <div id="status">
+    <div id="clock"></div>
+    <div id="info"><span id="date"></span><span class="dot">·</span><svg id="wifi" viewBox="0 0 16 13"></svg><span id="net"></span></div>
+  </div>
+  <div id="inputs" class="hidden"><div class="ihead">Inputs</div><div id="inputList"></div></div>
+  <div id="hints">
+    <span class="chip">▲▼</span><span class="hint">Browse</span>
+    <span class="chip">OK</span><span class="hint">Open</span>
+    <span class="chip">Hold OK</span><span class="hint">Customize</span>
+    <span id="inputsHint"><span class="chip">◀ ▶</span><span class="hint">Inputs</span></span>
+  </div>
+  <div id="customize" class="hidden">
+    <div class="title">Customize</div>
+    <div class="sub">OK switches a setting, or shows or hides an app. Move right to ▲ ▼ to change the order. Back to finish.</div>
+    <div id="list"></div>
+  </div>
+  <div id="toast" class="hidden"></div>
+</div>
+<script src="js/luna.js"></script>
+<script src="js/colors.js"></script>
+<script src="js/apps.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

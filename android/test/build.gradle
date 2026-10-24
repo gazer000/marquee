@@ -1,0 +1,24 @@
+// Robolectric tests for Marquee. Run ../build.sh first (it generates build/gen and build/unsigned.apk),
+// then: gradle -p test test   (screenshots go to -Dshots=<dir>, default /tmp/shots)
+plugins { id 'java' }
+repositories { google(); mavenCentral() }
+
+def sdk = System.getenv('ANDROID_HOME') ?: "${System.getProperty('user.home')}/android-sdk"
+def androidJar = files(System.getenv('ANDROID_JAR') ?: "$sdk/platforms/android-34/android.jar")
+
+java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+dependencies {
+    compileOnly androidJar
+    testCompileOnly androidJar
+    testRuntimeOnly androidJar
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'androidx.test:core:1.6.1'
+    testImplementation 'junit:junit:4.13.2'
+}
+sourceSets { main { java { srcDirs = ['../src', '../build/gen'] } } }
+test {
+    systemProperty 'robolectric.logging', 'stdout'
+    if (System.getProperty('shots')) systemProperty 'shots', System.getProperty('shots')
+    testLogging { showStandardStreams = true; exceptionFormat = 'full' }
+    maxHeapSize = '4g'
+}

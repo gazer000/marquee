@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Marquee</string>
+    <string name="customize">Customize apps</string>
+    <string name="home_redirect">Marquee Home button</string>
+    <string name="home_redirect_desc">Makes the Home button open Marquee instead of the Google TV home screen. It only watches for the Home button and the Google TV home screen; it reads nothing else.</string>
+</resources>

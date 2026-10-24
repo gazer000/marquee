@@ -1,0 +1,15 @@
+{
+  "id": "com.marquee.webos",
+  "version": "2.0.1",
+  "vendor": "Marquee contributors",
+  "type": "web",
+  "main": "index.html",
+  "title": "Marquee",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#2B3550",
+  "bgColor": "#101218",
+  "resolution": "1920x1080",
+  "handlesRelaunch": true,
+  "disableBackHistoryAPI": true
+}

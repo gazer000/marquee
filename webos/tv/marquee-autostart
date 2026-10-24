@@ -1,0 +1,252 @@
+#!/bin/sh
+# Marquee's background helper. Homebrew Channel runs it at boot from /var/lib/webosbrew/init.d.
+#  - Opens Marquee when the TV boots and each time it wakes from standby, unless the TV turned on to an
+#    HDMI input (a console or Chromecast woke it over HDMI-CEC), which it then leaves in front.
+#  - Takes the Home button. Best way: makes a copy of LG's Home key script
+#    (/usr/lib/qt5/qml/KeyFilters/systemUi.js) with 7 lines added and lays it over the original (a
+#    bind mount; LG's file is never changed and a reboot without this script undoes it), so Home
+#    opens Marquee directly, or LG's home when pressed inside Marquee. If that can't be applied, it falls back to watching for LG's home
+#    and replacing it with Marquee.
+# Both can be switched off in Marquee > Customize > Behaviour, which writes /var/lib/webosbrew/marquee.conf;
+# this script reads it on every event, so a change applies straight away.
+# Log: /tmp/marquee-autostart.log
+# To remove: rm /var/lib/webosbrew/init.d/marquee-autostart, then reboot.
+# To keep everything but the Home key script change: touch /var/lib/webosbrew/marquee/qml-off, then reboot.
+
+LOG=/tmp/marquee-autostart.log
+PIDFILE=/tmp/marquee-autostart.pid
+MARQUEE=com.marquee.webos
+LG_HOME=com.webos.app.home
+CONF=/var/lib/webosbrew/marquee.conf
+GENFILE=/tmp/marquee-autostart.gen
+QML_TARGET=/usr/lib/qt5/qml/KeyFilters/systemUi.js
+QML_DIR=/var/lib/webosbrew/marquee
+QML_OURS=$QML_DIR/systemUi.js
+# The LG file the change was written for (webOS 6.5.0, firmware 03.51.16), and the result. Any other
+# version is left alone and the Home button falls back to the watcher below.
+QML_ORIG_SHA=abbe33ff0b1bc44126f7115cdb51cb7bd5c5d51066504f61a15a19913010e3db
+QML_PATCHED_SHA=ceae9dd335604dfb7af92dad7ea5ee62c612ab6c6e3890495ec44443e22bc86b
+GEN=$$
+
+if [ -f "$PIDFILE" ]; then
+    kill $(cat "$PIDFILE") 2>/dev/null
+fi
+# The watchers' luna-send would otherwise outlive them.
+pkill -f 'tvpower/power/getPowerState' 2>/dev/null
+pkill -f 'applicationManager/getForegroundAppInfo' 2>/dev/null
+pkill -f 'tail -f /dev/null' 2>/dev/null
+echo "$GEN" > "$GENFILE"
+
+log() {
+    echo "$(date '+%F %T') $*" >> "$LOG"
+}
+
+# On unless marquee.conf says KEY=0.
+enabled() {
+    ! grep -q "^$1=0" "$CONF" 2>/dev/null
+}
+
+launch() {
+    luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$MARQUEE\"}" >/dev/null 2>&1
+    log "launched ($1)"
+}
+
+# The app in front, e.g. com.webos.app.hdmi2.
+front_app() {
+    luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null |
+        sed -n 's/.*"appId": *"\([^"]*\)".*/\1/p'
+}
+
+is_input() {
+    case "$1" in
+    com.webos.app.hdmi*|com.webos.app.externalinput*) return 0 ;;
+    esac
+    return 1
+}
+
+# Opens Marquee after the TV turns on, unless it turned on to an HDMI input. A device that wakes the
+# TV over HDMI-CEC switches to its input a moment after the screen comes on, so this watches the
+# front app for a few seconds before opening Marquee.
+power_on() {
+    enabled MARQUEE_POWERON || return
+    i=0
+    while [ $i -lt 4 ]; do
+        sleep 1; i=$((i + 1))
+        app=$(front_app)
+        if is_input "$app"; then
+            log "power-on ($1): $app in front, left there"
+            return
+        fi
+    done
+    [ "$app" = "$MARQUEE" ] || launch "$1, $app was in front"
+}
+
+# Follows a Luna subscription line by line. luna-send -i stops when its input ends, so its input is
+# kept open; if it exits anyway (a service restart), it is started again, unless a newer copy of
+# this script has taken over.
+follow() {
+    while [ "$(cat "$GENFILE" 2>/dev/null)" = "$GEN" ]; do
+        tail -f /dev/null | luna-send -i "$1" '{"subscribe":true}' 2>/dev/null
+        sleep 5
+    done
+}
+
+power_watch() {
+    last=Active
+    follow luna://com.webos.service.tvpower/power/getPowerState | while read -r line; do
+        case "$line" in
+        *'"state":"Active"'*|*'"state": "Active"'*)
+            if [ "$last" != Active ]; then
+                log "wake: $line"
+                power_on wake
+            fi
+            last=Active ;;
+        *'"state"'*)
+            last=other ;;
+        esac
+    done
+}
+
+home_watch() {
+    prev=""
+    marquee_at=0   # when Marquee last came to the front, in hundredths of a second
+    bounces=0
+    follow luna://com.webos.applicationManager/getForegroundAppInfo | while read -r line; do
+        # Matched with case, not sed, so Marquee is launched without starting any other process first.
+        case "$line" in
+        *'"appId":"'$LG_HOME'"'*|*'"appId": "'$LG_HOME'"'*) app=$LG_HOME ;;
+        *'"appId":"'$MARQUEE'"'*|*'"appId": "'$MARQUEE'"'*) app=$MARQUEE ;;
+        *'"appId":""'*|*'"appId": ""'*) continue ;;
+        *'"appId"'*) app=other ;;
+        *) continue ;;
+        esac
+        [ "$app" = "$prev" ] && continue
+        read -r up _ < /proc/uptime
+        now="${up%.*}${up#*.}"
+        if [ "$app" = "$LG_HOME" ] && enabled MARQUEE_HOME; then
+            if [ "$prev" != "$MARQUEE" ]; then
+                bounces=0
+                launch "home over $prev"
+            elif [ $((now - marquee_at)) -lt 300 ]; then
+                # LG's home often comes back just after Marquee replaced it. That is not the user
+                # pressing Home inside Marquee, so close LG's home this time and take the screen back,
+                # but give up if it keeps happening.
+                bounces=$((bounces + 1))
+                if [ $bounces -le 4 ]; then
+                    luna-send -n 1 luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$LG_HOME\"}" >/dev/null 2>&1 &
+                    launch "home again after $((now - marquee_at))0 ms, bounce $bounces"
+                else
+                    log "gave up: home keeps coming back"
+                fi
+            else
+                log "home let through (pressed in Marquee)"
+            fi
+        elif [ "$app" = "$MARQUEE" ]; then
+            marquee_at=$now
+        fi
+        log "front: $app at ${up}s"
+        prev=$app
+    done
+}
+
+# Adds Marquee's lines to LG's launchHomeApp(), just before it launches LG's home.
+patch_key_script() {
+    awk '
+!done && $0 == "    applicationManager.launch(\"com.webos.app.home\"," {
+    print "    // Marquee: the Home button opens Marquee instead of LG'\''s home; pressed while Marquee is in front, it"
+    print "    // opens LG'\''s home as before. Marquee hands straight over to LG'\''s home when its \"Home button opens"
+    print "    // Marquee\" switch is off. Laid over LG'\''s file by /var/lib/webosbrew/init.d/marquee-autostart."
+    print "    if (fullscreenView.appId !== \"com.marquee.webos\") {"
+    print "        applicationManager.launch(\"com.marquee.webos\", JSON.stringify({\"fromHome\": true}));"
+    print "        return;"
+    print "    }"
+    done = 1
+}
+{ print }
+    '
+}
+
+# /usr/lib/qt5/qml is a link to /usr/lib/qml on these TVs, and /proc/mounts lists the real path.
+qml_active() {
+    grep -q " $(readlink -f "$QML_TARGET") " /proc/mounts
+}
+
+# Lays Marquee's Home key script over LG's and restarts the compositor so it is read. Guarded three ways:
+# only over the exact LG file it was made from; undone if the compositor isn't running 20 s later;
+# and if the TV restarts before that check passes, it stays off from the next boot on (qml-off).
+apply_qml() {
+    # Without Marquee, the Home button would do nothing.
+    [ -d /media/developer/apps/usr/palm/applications/$MARQUEE ] || return 1
+    if [ -f "$QML_DIR/qml-off" ]; then
+        log "home patch: switched off ($QML_DIR/qml-off)"
+        return 1
+    fi
+    if [ -f "$QML_DIR/qml-pending" ]; then
+        rm -f "$QML_DIR/qml-pending"
+        touch "$QML_DIR/qml-off"
+        log "home patch: last attempt never finished, switched off"
+        return 1
+    fi
+    sum=$(sha256sum "$QML_TARGET" | cut -d' ' -f1)
+    if [ "$sum" = "$QML_PATCHED_SHA" ]; then
+        log "home patch: already active"
+        return 0
+    fi
+    # Someone else's file laid over LG's (an older version's): take it off and use LG's own.
+    n=0
+    while qml_active && [ $n -lt 5 ]; do
+        umount "$QML_TARGET"; n=$((n + 1))
+        log "home patch: took an older change off"
+    done
+    sum=$(sha256sum "$QML_TARGET" | cut -d' ' -f1)
+    if [ "$sum" != "$QML_ORIG_SHA" ]; then
+        log "home patch: LG's file is a different version ($sum), not applied"
+        return 1
+    fi
+    mkdir -p "$QML_DIR"
+    patch_key_script < "$QML_TARGET" > "$QML_OURS.new"
+    if [ "$(sha256sum "$QML_OURS.new" | cut -d' ' -f1)" != "$QML_PATCHED_SHA" ]; then
+        rm -f "$QML_OURS.new"
+        log "home patch: the change didn't come out as expected, not applied"
+        return 1
+    fi
+    mv "$QML_OURS.new" "$QML_OURS"
+    touch "$QML_DIR/qml-pending"; sync
+    if ! mount --bind "$QML_OURS" "$QML_TARGET"; then
+        rm -f "$QML_DIR/qml-pending"
+        return 1
+    fi
+    before=$(front_app)
+    log "home patch: restarting the compositor ($before in front)"
+    systemctl restart surface-manager
+    sleep 20
+    if systemctl is-active surface-manager >/dev/null 2>&1; then
+        rm -f "$QML_DIR/qml-pending"; sync
+        log "home patch: active"
+        # The restart closed whatever was open. Put an HDMI input back if the TV was on one,
+        # otherwise open Marquee.
+        now=$(front_app)
+        if is_input "$now"; then
+            log "after compositor restart: $now in front, left there"
+        elif is_input "$before"; then
+            luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$before\"}" >/dev/null 2>&1
+            log "after compositor restart: reopened $before"
+        elif enabled MARQUEE_POWERON; then
+            launch "after compositor restart"
+        fi
+        return 0
+    fi
+    log "home patch: compositor not running, undoing"
+    umount "$QML_TARGET"
+    touch "$QML_DIR/qml-off"; rm -f "$QML_DIR/qml-pending"; sync
+    systemctl restart surface-manager
+    return 1
+}
+
+# Give the TV time to finish booting before the first launch.
+( sleep 11; power_on boot ) </dev/null >/dev/null 2>&1 &
+power_watch </dev/null >/dev/null 2>&1 &
+pids=$!
+( apply_qml || home_watch ) </dev/null >/dev/null 2>&1 &
+pids="$pids $!"
+echo "$pids" > "$PIDFILE"
