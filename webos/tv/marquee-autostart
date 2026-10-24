@@ -96,13 +96,17 @@ power_watch() {
     follow luna://com.webos.service.tvpower/power/getPowerState | while read -r line; do
         case "$line" in
         *'"state":"Active"'*|*'"state": "Active"'*)
-            if [ "$last" != Active ]; then
-                log "wake: $line"
-                power_on wake
-            fi
+            case "$last" in
+            Active) ;;
+            # Back from the screensaver or a screen-off mode: the TV was on all along, so whatever
+            # was open stays in front.
+            *[Ss]aver*|*'Screen Off'*) log "back from $last, left as it was" ;;
+            *) log "wake from $last"; power_on wake ;;
+            esac
             last=Active ;;
         *'"state"'*)
-            last=other ;;
+            last=$(echo "$line" | sed -n 's/.*"state": *"\([^"]*\)".*/\1/p')
+            [ -n "$last" ] || last=other ;;
         esac
     done
 }

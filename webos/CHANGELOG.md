@@ -1,5 +1,9 @@
 # Changelog (LG webOS)
 
+## 2.0.2
+- Fix: coming back from the screensaver (or a screen-off mode) opened Marquee over the app you were
+  using. Marquee now only opens when the TV actually turns on.
+
 ## 2.0.1
 - Fix: the app list could come up empty (only Settings and Customize) and lose its saved order.
   The TV lists no apps while it is still starting up, and Marquee saved that empty list. It now
